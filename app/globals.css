@@ -1,26 +1,155 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:is(.dark *));
+
+/* =====================================================================
+   Premium Forest — SRS §8 + Figma SALARIO tokens (Light Mode default)
+   Two layers:
+   1. SALARIO brand tokens (forest/gold/canvas/…)
+   2. shadcn/ui semantic tokens mapped onto the same palette
+   ===================================================================== */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* SALARIO brand */
+  --forest: #173b35;
+  --forest-deep: #102e29;
+  --forest-hover: #24564b;
+  --forest-mid: #398675;
+  --subtle-green: #d5e6de;
+  --nav-active: #a8c9b5;
+  --nav-text: #d1e5d9;
+  --badge-bg: #e7efe9;
+  --border-soft: #dce6df;
+  --gold: #c5a66a;
+  --gold-champagne: #d5b77a;
+  --canvas: #f5f7f4;
+  --ivory: #f8f9f6;
+  --surface: #ffffff;
+  --text-primary: #26332f;
+  --text-secondary: #596760;
+  --text-muted: #62776e;
+
+  /* shadcn/ui semantic tokens */
+  --background: #f8f9f6;
+  --foreground: #26332f;
+  --card: #ffffff;
+  --card-foreground: #26332f;
+  --popover: #ffffff;
+  --popover-foreground: #26332f;
+  --primary: #173b35;
+  --primary-foreground: #ffffff;
+  --secondary: #d5e6de;
+  --secondary-foreground: #173b35;
+  --muted: #f1f5f2;
+  --muted-foreground: #596760;
+  --accent: #e7efe9;
+  --accent-foreground: #173b35;
+  --destructive: #a02a2a;
+  --destructive-foreground: #ffffff;
+  --border: #dce6df;
+  --input: #dce6df;
+  --ring: #24564b;
+  --chart-1: #173b35;
+  --chart-2: #398675;
+  --chart-3: #7aaa94;
+  --chart-4: #a8c9b5;
+  --chart-5: #d5b77a;
+  --radius: 0.625rem;
+
+  /* Sidebar — Figma "Green workspace sidebar" */
+  --sidebar: #173b35;
+  --sidebar-foreground: #d1e5d9;
+  --sidebar-primary: #a8c9b5;
+  --sidebar-primary-foreground: #102e29;
+  --sidebar-accent: rgba(255, 255, 255, 0.1);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.12);
+  --sidebar-ring: #a8c9b5;
 }
 
 @theme inline {
+  --color-forest: var(--forest);
+  --color-forest-deep: var(--forest-deep);
+  --color-forest-hover: var(--forest-hover);
+  --color-forest-mid: var(--forest-mid);
+  --color-subtle-green: var(--subtle-green);
+  --color-gold: var(--gold);
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-primary-text: var(--text-primary);
+  --color-secondary-text: var(--text-secondary);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "Intel One Mono", monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html[dir="rtl"] body {
+  letter-spacing: 0 !important;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Payroll status badges — visually distinguishable per SRS §8 */
+.status-in_review {
+  background: #e7efe9;
+  color: #24564b;
+  border: 1px solid #bcd8c9;
+}
+.status-pending {
+  background: #fdf3e3;
+  color: #8a5a00;
+  border: 1px solid #f0d9a8;
+}
+.status-rejected {
+  background: #fdecec;
+  color: #a02a2a;
+  border: 1px solid #f3b8b8;
+}
+.status-approved {
+  background: #173b35;
+  color: #ffffff;
+  border: 1px solid #173b35;
 }

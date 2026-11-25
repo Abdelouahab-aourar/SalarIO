@@ -1,0 +1,9 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="408" height="73.47" viewBox="0 0 408 73.47" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path id="Payroll area" d="M0 40.2185C28.6316 40.2185 50.1053 30.727 81.6 30.727C113.095 30.727 132.421 34.6684 163.2 34.6684C193.979 34.6684 214.021 16.4494 244.8 16.4494C275.579 16.4494 295.621 10.7786 326.4 10.7786C357.179 10.7786 376.505 0 408 0V73.47H0V40.2185Z" fill="url(#paint0_linear_0_87)"/>
+<defs>
+<linearGradient id="paint0_linear_0_87" x1="204" y1="0" x2="204" y2="73.47" gradientUnits="userSpaceOnUse">
+<stop stop-color="#398675" stop-opacity="0.34"/>
+<stop offset="1" stop-color="#398675" stop-opacity="0"/>
+</linearGradient>
+</defs>
+</svg>
