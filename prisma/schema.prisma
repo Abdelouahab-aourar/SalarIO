@@ -1,0 +1,376 @@
+// Prisma schema — PostgreSQL (Neon). Better Auth compatible + payroll domain.
+// Architectural decision: Prisma + Neon Postgres (client-confirmed), replacing the
+// Drizzle proposal. The SRS prescribes no ORM; Prisma gives versioned migrations,
+// strict relations and a maintained Better Auth adapter.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------- Roles & employment ----------
+enum Role {
+  HR
+  AUTHORIZED
+  APPROVER
+  EMPLOYEE
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+}
+
+enum PayrollStatus {
+  IN_REVIEW
+  PENDING
+  REJECTED
+  APPROVED
+}
+
+enum RuleStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+// ---------- Better Auth models ----------
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  role          Role      @default(EMPLOYEE)
+  locale        String    @default("fr")
+  employeeId    String?   @unique
+  employee      Employee? @relation("UserEmployee", fields: [employeeId], references: [id], onDelete: SetNull)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  sessions    Session[]
+  accounts    Account[]
+  permissions UserDepartmentPermission[] @relation("UserPermissions")
+  approvals   PayrollApproval[]          @relation("ApproverDecisions")
+  auditLogs   AuditLog[]                 @relation("ActorLogs")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
+
+  @@index([identifier])
+}
+
+// ---------- Company workspace (BR-02: one workspace) ----------
+model Company {
+  id          String       @id @default(cuid())
+  name        String
+  createdAt   DateTime     @default(now())
+  departments Department[]
+  periods     PayrollPeriod[]
+}
+
+model Department {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  employees   Employee[]
+  rules       PayrollRule[]
+  permissions UserDepartmentPermission[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+}
+
+// BR-04: each employee belongs to one department only (single FK, enforced).
+model Employee {
+  id               String         @id @default(cuid())
+  matricule        String         @unique
+  firstName        String
+  lastName         String
+  departmentId     String
+  department       Department     @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  employmentType   EmploymentType @default(FULL_TIME)
+  baseSalaryCents  Int            // integer minor units (centimes) — decimal-safe storage
+  iepRate          Decimal        @default(0) @db.Decimal(5, 2)
+  position         String         @default("")
+  category         String         @default("")
+  echelon          String         @default("")
+  hireDate         String         @default("")
+  ssNumber         String         @default("")
+  maritalStatus    String         @default("")
+  childrenCount    Int            @default(0)
+  paymentMethod    String         @default("")
+  accountRef       String         @default("")
+  cotisantNumber   String         @default("")
+  active           Boolean        @default(true)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  user       User?       @relation("UserEmployee")
+  bonuses    Bonus[]
+  absences   Absence[]
+  items      PayrollItem[]
+  allowances Allowance[]
+  deductions Deduction[]
+
+  @@index([departmentId])
+  @@index([active])
+}
+
+/// HR-entered allowance for one employee and period. Feeds salary calculation
+/// directly (BR-06). `mode`: fixed | percent_base | percent_net (taxable ones
+/// only support fixed/percent_base — enforced server-side).
+model Allowance {
+  id           String   @id @default(cuid())
+  employeeId   String
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  period       String // "YYYY-MM"
+  label        String
+  amountCents  Int // fixed: centimes of DA; percent: rate × 100
+  taxable      Boolean  @default(true)
+  mode         String   @default("fixed")
+  recordedById String?
+  createdAt    DateTime @default(now())
+
+  @@index([employeeId, period])
+}
+
+/// HR-entered deduction for one employee and period (advances, loans, mutual).
+model Deduction {
+  id           String   @id @default(cuid())
+  employeeId   String
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  period       String // "YYYY-MM"
+  label        String
+  amountCents  Int
+  recordedById String?
+  createdAt    DateTime @default(now())
+
+  @@index([employeeId, period])
+}
+
+model UserDepartmentPermission {
+  id               String     @id @default(cuid())
+  userId           String
+  user             User       @relation("UserPermissions", fields: [userId], references: [id], onDelete: Cascade)
+  departmentId     String
+  department       Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  canEnterAbsence  Boolean    @default(true)
+  canEnterBonus    Boolean    @default(true)
+  canViewReports   Boolean    @default(false)
+  createdAt        DateTime   @default(now())
+
+  @@unique([userId, departmentId])
+  @@index([departmentId])
+}
+
+// ---------- Payroll rules + versioning (BR-03, BR-07, BR-08, FR-21) ----------
+// PayrollRule is the mutable header; PayrollRuleVersion rows are immutable once created.
+// Approved payroll items reference a version id, never the live rule.
+model PayrollRule {
+  id            String      @id @default(cuid())
+  departmentId  String
+  department    Department  @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  name          String
+  appliesTo     String      @default("")
+  status        RuleStatus  @default(DRAFT)
+  basePayMethod String      @default("MONTHLY_BASE")
+  effectiveFrom DateTime    @default(now())
+  createdById   String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  versions PayrollRuleVersion[]
+
+  @@index([departmentId, status])
+}
+
+model PayrollRuleVersion {
+  id            String      @id @default(cuid())
+  ruleId        String
+  rule          PayrollRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  version       Int
+  effectiveFrom DateTime
+  // Full calculation recipe snapshot: bonus components, deduction components,
+  // absence method, reference days, calculation order. JSON for flexibility +
+  // immutability (never updated after creation).
+  config        Json
+  createdAt     DateTime    @default(now())
+
+  items PayrollItem[]
+
+  @@unique([ruleId, version])
+  @@index([ruleId, effectiveFrom])
+}
+
+// ---------- Inputs (FR-09, FR-10, BR-06: direct feed, no per-entry approval) ----------
+model Bonus {
+  id           String   @id @default(cuid())
+  employeeId   String
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  period       String   // "YYYY-MM"
+  label        String
+  amountCents  Int
+  taxable      Boolean  @default(true)
+  mode         String   @default("fixed") // "fixed" | "percent"
+  recordedById String?
+  createdAt    DateTime @default(now())
+
+  @@index([employeeId, period])
+}
+
+model Absence {
+  id           String   @id @default(cuid())
+  employeeId   String
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  period       String   // "YYYY-MM"
+  days         Decimal  @db.Decimal(5, 2)
+  type         String   @default("UNJUSTIFIED")
+  recordedById String?
+  createdAt    DateTime @default(now())
+
+  @@index([employeeId, period])
+}
+
+// ---------- Payroll workflow (FR-11, FR-13/14/15; states IN_REVIEW→PENDING→APPROVED/REJECTED) ----------
+model PayrollPeriod {
+  id          String        @id @default(cuid())
+  companyId   String
+  company     Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  year        Int
+  month       Int
+  label       String        // e.g. "OCTOBER 2026"
+  status      PayrollStatus @default(IN_REVIEW)
+  totalGrossCents Int       @default(0)
+  totalNetCents   Int       @default(0)
+  employeeCount   Int       @default(0)
+  calculatedAt    DateTime?
+  submittedAt     DateTime?
+  decidedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  items     PayrollItem[]
+  approvals PayrollApproval[]
+
+  @@unique([companyId, year, month])
+  @@index([status])
+}
+
+model PayrollItem {
+  id                     String      @id @default(cuid())
+  periodId               String
+  period                 PayrollPeriod      @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  employeeId             String
+  employee               Employee             @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  ruleVersionId          String?
+  ruleVersion            PayrollRuleVersion?  @relation(fields: [ruleVersionId], references: [id], onDelete: SetNull)
+  baseSalaryCents        Int
+  iepCents               Int         @default(0)
+  overtimeCents          Int         @default(0)
+  taxableBonusesCents    Int         @default(0)
+  nonTaxableCents        Int         @default(0)
+  absenceDeductionCents  Int         @default(0)
+  grossCents             Int
+  cnasCents              Int
+  taxableCents           Int
+  irgCents               Int
+  netFromGrossCents      Int
+  otherDeductionsCents   Int         @default(0)
+  netCents               Int
+  employerCnasCents      Int         @default(0)
+  employerCostCents      Int         @default(0)
+  // Immutable calculation snapshot (FR-20): full breakdown + inputs + rule config.
+  breakdown              Json
+  createdAt              DateTime    @default(now())
+
+  payslip Payslip?
+
+  @@unique([periodId, employeeId])
+  @@index([periodId])
+  @@index([employeeId])
+}
+
+model PayrollApproval {
+  id        String        @id @default(cuid())
+  periodId  String
+  period    PayrollPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  decidedById String
+  decidedBy User          @relation("ApproverDecisions", fields: [decidedById], references: [id], onDelete: Restrict)
+  decision  String        // "APPROVED" | "REJECTED"
+  reason    String        @default("")
+  createdAt DateTime      @default(now())
+
+  @@index([periodId])
+}
+
+model Payslip {
+  id        String      @id @default(cuid())
+  itemId    String      @unique
+  item      PayrollItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  createdAt DateTime    @default(now())
+
+  @@index([itemId])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  actor     User?    @relation("ActorLogs", fields: [actorId], references: [id], onDelete: SetNull)
+  action    String
+  entity    String
+  entityId  String   @default("")
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([actorId])
+  @@index([entity, entityId])
+}
